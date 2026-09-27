@@ -217,7 +217,7 @@
 
         // UI上は1始まりのため、1を引いて元のインデックス(0始まり)に補正してエンコード
         const personaIndexVal = parseInt(document.getElementById(`persona-${pid}`).value, 10) || 1;
-        const personaIndex = personaIndexVal - 1;
+        const personaIndex = personaIndexVal;
 
         const order = parseInt(document.getElementById(`order-${pid}`).value, 10) || 0;
         
