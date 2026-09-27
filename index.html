@@ -96,9 +96,15 @@
     .sinner-header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       border-bottom: 2px solid var(--accent-color);
       padding-bottom: 10px;
       margin-bottom: 15px;
+    }
+
+    .sinner-title {
+      display: flex;
+      align-items: center;
     }
 
     .sinner-id {
@@ -122,7 +128,7 @@
       letter-spacing: 1px;
     }
 
-    select, input {
+    select {
       width: 100%;
       padding: 8px 12px;
       background-color: #2a2a2a;
@@ -161,7 +167,7 @@
   <h1>LIMBUS COMPANY SINNERS & E.G.O</h1>
 
   <div class="code-panel">
-    <h2>編成コード管理</h2>
+    <h2>編成コード管理 (BASE64 + GZIP)</h2>
     <div class="code-controls">
       <input type="text" id="teamCodeInput" class="code-input" placeholder="編成コードがここに表示・入力されます">
       <button class="btn" onclick="generateCode()">編成コード生成</button>
@@ -342,8 +348,16 @@
 
       card.innerHTML = `
         <div class="sinner-header">
-          <span class="sinner-id">No.${sinner.id}</span>
-          <span class="sinner-name">${sinner.name}</span>
+          <div class="sinner-title">
+            <span class="sinner-id">No.${sinner.id}</span>
+            <span class="sinner-name">${sinner.name}</span>
+          </div>
+          <div style="width: 120px;">
+            <select id="order-${sinner.id}">
+              <option value="0">未選択</option>
+              ${[...Array(12)].map((_, i) => `<option value="${i + 1}">編成 ${i + 1}</option>`).join('')}
+            </select>
+          </div>
         </div>
         
         <div class="section-title">人格 (Persona)</div>
@@ -358,46 +372,135 @@
       app.appendChild(card);
     });
 
-    // 編成コードの生成関数
-    function generateCode() {
-      const codeParts = [];
+    // 数値を指定されたビット長（2進数文字列）に変換するヘルパー関数
+    function toBits(val, bitLength) {
+      return (parseInt(val) || 0).toString(2).padStart(bitLength, '0');
+    }
+
+    // ビット文字列を Uint8Array に変換
+    function bitStringToBytes(bitStr) {
+      const byteLen = Math.ceil(bitStr.length / 8);
+      const bytes = new Uint8Array(byteLen);
+      for (let i = 0; i < byteLen; i++) {
+        const slice = bitStr.slice(i * 8, (i + 1) * 8).padEnd(8, '0');
+        bytes[i] = parseInt(slice, 2);
+      }
+      return bytes;
+    }
+
+    // Uint8Array をビット文字列に変換
+    function bytesToBitString(bytes) {
+      return Array.from(bytes).map(b => b.toString(2).padStart(8, '0')).join('');
+    }
+
+    // Base64 エンコード / デコード ヘルパー
+    function bytesToBase64(bytes) {
+      let binStr = '';
+      bytes.forEach(b => binStr += String.fromCharCode(b));
+      return btoa(binStr);
+    }
+
+    function base64ToBytes(base64Str) {
+      const binStr = atob(base64Str);
+      const bytes = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) {
+        bytes[i] = binStr.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    // GZIP 圧縮
+    async function gzipCompress(bytes) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+      const response = new Response(stream);
+      return new Uint8Array(await response.arrayBuffer());
+    }
+
+    // GZIP 解凍
+    async function gzipDecompress(bytes) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      const response = new Response(stream);
+      return new Uint8Array(await response.arrayBuffer());
+    }
+
+    // 編成コードの生成関数 (564bit 規格)
+    async function generateCode() {
       const ranks = ["ZAYIN", "TETH", "HE", "WAW", "ALEPH"];
+      let bitStr = '0'; // 前の 1bit
 
       sinnersData.forEach(sinner => {
         const pVal = document.getElementById(`persona-${sinner.id}`).value;
-        const egoVals = ranks.map(rank => {
-          return document.getElementById(`ego-${sinner.id}-${rank}`).value;
+        const orderVal = document.getElementById(`order-${sinner.id}`).value;
+
+        bitStr += toBits(pVal, 7);
+        bitStr += toBits(orderVal, 4);
+
+        ranks.forEach(rank => {
+          const egoVal = document.getElementById(`ego-${sinner.id}-${rank}`).value;
+          bitStr += toBits(egoVal, 7);
         });
-        codeParts.push(`${sinner.id}:${pVal}:${egoVals.join(',')}`);
       });
 
-      const code = codeParts.join(';');
-      document.getElementById('teamCodeInput').value = code;
+      bitStr += '0'.repeat(11); // 後の 11bit
+
+      // 1. ビット列をバイト配列化してInner Base64を作成
+      const innerBytes = bitStringToBytes(bitStr);
+      const innerBase64 = bytesToBase64(innerBytes);
+
+      // 2. Inner Base64 文字列（ASCIIバイト）を GZIP 圧縮
+      const textEncoder = new TextEncoder();
+      const rawAsciiBytes = textEncoder.encode(innerBase64);
+      const compressedBytes = await gzipCompress(rawAsciiBytes);
+
+      // 3. 圧縮されたデータを最終的な Outer Base64 に変換
+      const finalCode = bytesToBase64(compressedBytes);
+      document.getElementById('teamCodeInput').value = finalCode;
     }
 
-    // 編成コードからの反映関数
-    function applyCode() {
+    // 編成コードからの読み込み関数
+    async function applyCode() {
       const code = document.getElementById('teamCodeInput').value.trim();
       if (!code) return;
 
-      const sinnerCodes = code.split(';');
-      const ranks = ["ZAYIN", "TETH", "HE", "WAW", "ALEPH"];
+      try {
+        // 1. Outer Base64 デコード
+        const compressedBytes = base64ToBytes(code);
 
-      sinnerCodes.forEach(sinnerCode => {
-        const [id, pVal, egoValStr] = sinnerCode.split(':');
-        if (!id || !pVal || !egoValStr) return;
+        // 2. GZIP 解凍して Inner Base64 文字列を取得
+        const rawAsciiBytes = await gzipDecompress(compressedBytes);
+        const textDecoder = new TextDecoder();
+        const innerBase64 = textDecoder.decode(rawAsciiBytes);
 
-        const personaSelect = document.getElementById(`persona-${id}`);
-        if (personaSelect) personaSelect.value = pVal;
+        // 3. Inner Base64 デコードしてビット列に展開
+        const innerBytes = base64ToBytes(innerBase64);
+        const bitStr = bytesToBitString(innerBytes);
 
-        const egoVals = egoValStr.split(',');
-        ranks.forEach((rank, idx) => {
-          const egoSelect = document.getElementById(`ego-${id}-${rank}`);
-          if (egoSelect && egoVals[idx] !== undefined) {
-            egoSelect.value = egoVals[idx];
-          }
+        // 先頭1bitを除外してデータフィールドを取得 (12囚人 × 46bit = 552bit)
+        const dataBits = bitStr.slice(1, 553);
+        const ranks = ["ZAYIN", "TETH", "HE", "WAW", "ALEPH"];
+
+        sinnersData.forEach((sinner, i) => {
+          const chunk = dataBits.slice(i * 46, (i + 1) * 46);
+          if (chunk.length < 46) return;
+
+          const pVal = parseInt(chunk.slice(0, 7), 2);
+          const orderVal = parseInt(chunk.slice(7, 11), 2);
+
+          document.getElementById(`persona-${sinner.id}`).value = pVal;
+          document.getElementById(`order-${sinner.id}`).value = orderVal;
+
+          ranks.forEach((rank, rIdx) => {
+            const egoVal = parseInt(chunk.slice(11 + rIdx * 7, 18 + rIdx * 7), 2);
+            const selectEl = document.getElementById(`ego-${sinner.id}-${rank}`);
+            if (selectEl) {
+              selectEl.value = egoVal;
+            }
+          });
         });
-      });
+      } catch (e) {
+        alert("無効な編成コードです。正しいBASE64/GZIPコードを入力してください。");
+        console.error(e);
+      }
     }
   </script>
 </body>
