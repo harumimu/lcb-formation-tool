@@ -12,7 +12,6 @@
     .code-box { margin-top: 20px; font-size: 1rem; word-break: break-all; }
   </style>
 
-  <!-- GZIPライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 </head>
 <body>
@@ -41,7 +40,6 @@
   </div>
 
   <script>
-    // 囚人の固定順
     const PRISONERS = [
       { id: "01", name: "イサン" },
       { id: "02", name: "ファウスト" },
@@ -60,14 +58,15 @@
     let PERSONA_DATA = {};
     let EGO_DATA = {};
 
-    // JSON読み込み
     Promise.all([
-      fetch("personas.json").then(r => r.json()),
-      fetch("ego.json").then(r => r.json())
+      fetch("./personas.json").then(r => r.json()),
+      fetch("./ego.json").then(r => r.json())
     ]).then(([personas, egos]) => {
       PERSONA_DATA = personas;
       EGO_DATA = egos;
       buildUI();
+    }).catch(err => {
+      console.error("JSON読み込みエラー:", err);
     });
 
     function buildUI() {
@@ -76,12 +75,10 @@
       PRISONERS.forEach((p, idx) => {
         const tr = document.createElement("tr");
 
-        // 囚人名
         const tdName = document.createElement("td");
         tdName.textContent = `${idx+1}. ${p.name}`;
         tr.appendChild(tdName);
 
-        // 人格
         const tdPersona = document.createElement("td");
         const selPersona = document.createElement("select");
         selPersona.id = `persona-${p.id}`;
@@ -94,7 +91,6 @@
         tdPersona.appendChild(selPersona);
         tr.appendChild(tdPersona);
 
-        // 編成順
         const tdOrder = document.createElement("td");
         const selOrder = document.createElement("select");
         selOrder.id = `order-${p.id}`;
@@ -111,7 +107,6 @@
         tdOrder.appendChild(selOrder);
         tr.appendChild(tdOrder);
 
-        // EGOプルダウン生成
         function makeEgoSelect(type) {
           const sel = document.createElement("select");
           sel.id = `${type}-${p.id}`;
@@ -148,7 +143,6 @@
       });
     }
 
-    // ビット詰め
     function pushBits(bits, value, length) {
       for (let i = length - 1; i >= 0; i--) {
         bits.push((value >> i) & 1);
@@ -175,11 +169,8 @@
       return btoa(binary);
     }
 
-    // 全囚人コード生成
     function generateAllCode() {
       const bits = [];
-
-      // 先頭1bit（仕様）
       bits.push(0);
 
       PRISONERS.forEach(p => {
@@ -202,7 +193,6 @@
         pushBits(bits, a, 7);
       });
 
-      // 末尾11bit
       for (let i = 0; i < 11; i++) bits.push(0);
 
       const rawBytes = bitsToBytes(bits);
