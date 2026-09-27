@@ -30,7 +30,7 @@
 
     .code-panel {
       max-width: 1200px;
-      margin: 0 auto 30px auto;
+      margin: 0 auto 20px auto;
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: 8px;
@@ -75,6 +75,42 @@
 
     .btn:hover {
       background-color: #cc0000;
+    }
+
+    .btn-secondary {
+      background-color: #444;
+    }
+
+    .btn-secondary:hover {
+      background-color: #666;
+    }
+
+    .order-setting-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .order-setting-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #2a2a2a;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .order-setting-item label {
+      font-size: 0.85rem;
+    }
+
+    .order-setting-item select {
+      width: 75px;
+      margin-bottom: 0;
+      padding: 2px 4px;
     }
 
     .container {
@@ -172,6 +208,13 @@
       <input type="text" id="teamCodeInput" class="code-input" placeholder="編成コードがここに表示・入力されます">
       <button class="btn" onclick="generateCode()">編成コード生成</button>
       <button class="btn" onclick="applyCode()">コードから読み込み</button>
+    </div>
+
+    <h2>編成順をクイック設定</h2>
+    <div class="order-setting-grid" id="quickOrderGrid"></div>
+    <div class="code-controls" style="margin-top: 15px;">
+      <button class="btn" onclick="applyQuickOrder()">編成順を適用</button>
+      <button class="btn btn-secondary" onclick="clearQuickOrder()">編成順をクリア</button>
     </div>
   </div>
 
@@ -313,7 +356,7 @@
       },
       {
         "id": "12",
-        "name": "グレゴール",
+        "name": "グレゴー",
         "personas": ["LCB囚人", "南部リウ協会6課", "G社課長代理", "りょ・ミ・パ助手", "バラのスパナ工房フィクサー", "南部ツヴァイ協会4課", "双鈎海賊団副船長", "黒雲会副組長", "エドガー家 継承者", "ラ・マンチャランド 神父", "炎拳事務所生存者", "黒獣-巳", "夜の錐カピターノ", "ロボトミーE.G.O::ランプ", "LCE E.G.O::AEDD", "夜明事務所代表"],
         "egos": {
           "ZAYIN": [{"name": "ある日突然", "val": 1}, {"name": "まやかし", "val": 2}],
@@ -326,8 +369,11 @@
     ];
 
     const app = document.getElementById('app');
+    const quickOrderGrid = document.getElementById('quickOrderGrid');
 
+    // UIレンダリング
     sinnersData.forEach(sinner => {
+      // 1. メインカード作成
       const card = document.createElement('div');
       card.className = 'sinner-card';
 
@@ -353,9 +399,9 @@
             <span class="sinner-name">${sinner.name}</span>
           </div>
           <div style="width: 120px;">
-            <select id="order-${sinner.id}">
+            <select id="order-${sinner.id}" class="order-select">
               <option value="0">未選択</option>
-              ${[...Array(12)].map((_, i) => `<option value="${i + 1}"> ${i + 1}</option>`).join('')番目}
+              ${[...Array(12)].map((_, i) => `<option value="${i + 1}">${i + 1}番目</option>`).join('')}
             </select>
           </div>
         </div>
@@ -370,7 +416,35 @@
       `;
 
       app.appendChild(card);
+
+      // 2. クイック設定グリッド要素作成
+      const qItem = document.createElement('div');
+      qItem.className = 'order-setting-item';
+      qItem.innerHTML = `
+        <label>${sinner.name}</label>
+        <select id="quick-order-${sinner.id}">
+          <option value="0">-</option>
+          ${[...Array(12)].map((_, i) => `<option value="${i + 1}">${i + 1}番目</option>`).join('')}
+        </select>
+      `;
+      quickOrderGrid.appendChild(qItem);
     });
+
+    // クイック編成順の適用関数
+    function applyQuickOrder() {
+      sinnersData.forEach(sinner => {
+        const qVal = document.getElementById(`quick-order-${sinner.id}`).value;
+        document.getElementById(`order-${sinner.id}`).value = qVal;
+      });
+    }
+
+    // クイック編成順のクリア関数
+    function clearQuickOrder() {
+      sinnersData.forEach(sinner => {
+        document.getElementById(`quick-order-${sinner.id}`).value = "0";
+        document.getElementById(`order-${sinner.id}`).value = "0";
+      });
+    }
 
     // 数値を指定されたビット長（2進数文字列）に変換するヘルパー関数
     function toBits(val, bitLength) {
@@ -488,6 +562,7 @@
 
           document.getElementById(`persona-${sinner.id}`).value = pVal;
           document.getElementById(`order-${sinner.id}`).value = orderVal;
+          document.getElementById(`quick-order-${sinner.id}`).value = orderVal; // クイック設定側の表示も同期
 
           ranks.forEach((rank, rIdx) => {
             const egoVal = parseInt(chunk.slice(11 + rIdx * 7, 18 + rIdx * 7), 2);
