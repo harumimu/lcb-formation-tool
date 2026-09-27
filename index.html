@@ -2,248 +2,42 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>12囚人編成コード生成（GZIP+BASE64）</title>
-  <style>
-    body { font-family: system-ui, sans-serif; padding: 20px; }
-    h1 { font-size: 1.4rem; margin-bottom: 10px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 4px; font-size: 0.8rem; }
-    select { font-size: 0.8rem; }
-    .code-box { margin-top: 20px; font-size: 1rem; word-break: break-all; }
-  </style>
-
+  <title>コード生成ツール</title>
   <!-- GZIPライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 </head>
 <body>
-  <h1>12囚人編成コード生成ツール（GZIP + BASE64）</h1>
+  <h1>コード生成ツール（GZIP + BASE64）</h1>
 
-  <table>
-    <thead>
-      <tr>
-        <th>囚人</th>
-        <th>人格</th>
-        <th>編成順</th>
-        <th>ZAYIN</th>
-        <th>TETH</th>
-        <th>HE</th>
-        <th>WAW</th>
-        <th>ALEPH</th>
-      </tr>
-    </thead>
-    <tbody id="prisoner-rows"></tbody>
-  </table>
+  <button onclick="generateCode()">コード生成</button>
 
-  <button onclick="generateAllCode()">全編成コード生成</button>
-
-  <div class="code-box">
+  <div style="margin-top: 20px;">
     コード: <span id="code">未生成</span>
   </div>
 
   <script>
-    // 囚人の固定順
-    const PRISONERS = [
-      { id: "01", name: "イサン" },
-      { id: "02", name: "ファウスト" },
-      { id: "03", name: "ドンキホーテ" },
-      { id: "04", name: "良秀" },
-      { id: "05", name: "ムルソー" },
-      { id: "06", name: "ホンル" },
-      { id: "07", name: "ヒースクリフ" },
-      { id: "08", name: "イシュメール" },
-      { id: "09", name: "ロージャ" },
-      { id: "10", name: "シンクレア" },
-      { id: "11", name: "ウーティス" },
-      { id: "12", name: "グレゴール" }
-    ];
+    function generateCode() {
+      // 1. 対象のオブジェクトデータを準備
+      const data = {
+        persona: 0,
+        order: 0,
+        zayin: 0
+      };
 
-    // データ定義
-    const PERSONA_DATA = {
-      "01": { "name": "イサン", "personas": ["LCB囚人", "南部セブン協会6課", "剣契殺手", "開花E.G.O::壇香梅", "奥歯事務所フィクサー", "W社3級整理要員", "ピークォド号1等航海士", "南部ディエーチ協会4課", "薬指点描派スチューデント", "ロボトミーE.G.O::厳粛な哀悼", "LCE E.G.O::提灯", "南部リウ協会3課", "N社E.G.O::凶弾", "黒獣-午 筆頭", "蜘蛛の巣人差し指の親方", "LCE E.G.O::次元裂き"] },
-      "02": { "name": "ファウスト", "personas": ["LCB囚人", "W社2級整理要員", "生き残ったロボトミー職員", "握る者", "南部ツヴァイ協会4課", "南部セブン協会4課", "ロボトミーE.G.O::後悔", "剣契殺手", "ワザリング・ハイツ バトラー", "マルチクラック事務所 代表", "LCE E.G.O::紅炎殺", "黒獣-卯 筆頭", "東部シ協会3課", "人差し指遂行者 : 【紙片】", "蜘蛛の巣 薬指の子方", "夜明事務所フィクサー"] },
-      "03": { "name": "ドンキホーテ", "personas": ["LCB囚人", "W社3級整理要員", "南部シ協会5課", "N社中鎚", "南部センク協会5課部長", "中指末妹", "ロボトミーE.G.O::提灯", "剣契殺手", "T社3級徴収職職員", "ラ・マンチャランド室長", "東部センク協会3課", "ロボトミーE.G.O::愛と憎悪の名の下に", "黒獣-未", "人差し指代行者-開花E.G.O::代行"] },
-      "04": { "name": "良秀", "personas": ["LCB囚人", "南部セブン協会6課", "黒雲会若衆", "りょ・ミ・パ厨房長", "W社3級整理要員", "LCCB係長", "南部リウ協会4課", "エドガー家 チーフバトラー", "20区ユロージヴィ", "ロボトミーE.G.O::赤眼・懺悔", "黒獣-卯", "N社E.G.O::軽蔑、畏敬", "鴻園の放浪武者", "ロボトミーE.G.O::残香・寂しさ", "蜘蛛の巣の刀", "オートクチュール::ル・ノワール シューズフロア"] },
-      "05": { "name": "ムルソー", "personas": ["LCB囚人", "南部リウ協会6課", "W社2級整理要員", "N社大鎚", "バラのスパナ工房フィクサー", "R社第4群サイチーム", "中指末弟", "剣契頭目", "デッドラビッツ ボス", "南部ディエーチ協会4課部長", "西部センク協会3課", "東部親指カポIIII", "ラ・マンチャランドの王子", "ロボトミーE.G.O::ホーネット【変調】", "薬指野獣派スチューデント"] },
-      "06": { "name": "ホンル", "personas": ["LCB囚人", "黒雲会若衆", "ぽんぽん派ボス", "南部リウ協会5課", "K社3級摘出職職員", "W社2級整理要員", "鉤事務所フィクサー", "南部ディエーチ協会4課", "20区ユロージヴィ", "牙狩事務所フィクサー", "終止符事務所代表", "R社第4群トナカイチーム", "鴻園の君主", "蜘蛛の巣 薬指の親方", "S社チュノックン", "東部センク協会3課"] },
-      "07": { "name": "ヒースクリフ", "personas": ["LCB囚人", "南部シ協会5課", "R社第4群ウサギチーム", "N社小鎚", "ロボトミーE.G.O::狐雨", "南部セブン協会4課", "ピークォド号銛使い", "南部ウーフィ協会3課", "マルチクラック事務所 フィクサー", "ワイルドハント", "終止符事務所フィクサー", "黒雲会若衆", "W社4級整理要員-CCA", "黒獣-酉 筆頭", "中指未兄", "蜘蛛の巣 親指の子方"] },
-      "08": { "name": "イシュメール", "personas": ["LCB囚人", "R社第4群トナカイチーム", "南部シ協会5課", "LCCB係長", "ロボトミーE.G.O::たゆたう", "南部リウ協会4課", "豊歯ポートセンター フィクサー", "ピークォド号船長", "エドガー家 バトラー", "西部ツヴァイ協会3課", "黒雲会組長", "家主候補", "定事務所代表", "蜘蛛の巣 中指の子方", "LCD現場推理チーム", "オートクチュール::ル・ルージュ ブティーク"] },
-      "09": { "name": "ロージャ", "personas": ["LCB囚人", "黒雲会若衆", "LCCB係長", "N社中鎚", "バラのスパナ工房代表", "南部ツヴァイ協会5課", "南部ディエーチ協会4課", "南部リウ協会4課部長", "T社2級徴収職職員", "北部ヂェーヴィチ協会3課", "ラ・マンチャランドの姫", "黒獣-巳", "ロボトミーE.G.O::涙で研ぎ澄まされた剣", "R社第4群トナカイチーム", "薬指野獣派ドーセント", "蜘蛛の巣 親指の親方", "オートクチュール::お直し室"] },
-      "10": { "name": "シンクレア", "personas": ["LCB囚人", "剣契殺手", "南部ツヴァイ協会6課", "マリアッチボス", "握らんとする者", "ロボトミーE.G.O::紅籍", "奥歯ボートセンター フィクサー", "南部センク協会4課部長", "夜明事務所フィクサー", "西部ツヴァイ協会3課", "北部ヂェーヴィチ協会3課", "中指末弟", "東部親指ソルダートII", "黒獣-酉", "蜘蛛の巣 小指の子方"] },
-      "11": { "name": "ウーティス", "personas": ["LCB囚人", "剣契殺手", "G社部長", "南部セブン協会6課部長", "奥歯事務所フィクサー", "南部センク協会4課", "ロボトミーE.G.O::魔弾", "ワザリング・ハイツ チーフバトラー", "薬指点描派スチューデント", "W社3級整理要員チーフ", "ラ・マンチャランド 理髪師", "黒獣-卯", "T社3級強制徴収職職員", "LCAウアジェト 先鋒三隊隊長", "蜘蛛の巣 中指の親方"] },
-      "12": { "name": "グレゴール", "personas": ["LCB囚人", "南部リウ協会6課", "G社課長代理", "りょ・ミ・パ助手", "バラのスパナ工房フィクサー", "南部ツヴァイ協会4課", "双鈎海賊団副船長", "黒雲会副組長", "エドガー家 継承者", "ラ・マンチャランド 神父", "炎拳事務所生存者", "黒獣-巳", "夜の錐カピターノ", "ロボトミーE.G.O::ランプ", "LCE E.G.O::AEDD", "夜明事務所代表"] }
-    };
+      // 2. オブジェクトを JSON 文字列に変換
+      const jsonString = JSON.stringify(data);
 
-    const EGO_DATA = {
-      "01": { "ZAYIN": ["なし", "鳥瞰刀", "過ぎし日"], "TETH": ["なし", "4本目のマッチの火", "願いの石"], "HE": ["なし", "次元裂き", "凶弾", "厳粛な哀悼"], "WAW": ["なし", "狐雨", "三千大世界"], "ALEPH": ["なし"] },
-      "02": { "ZAYIN": ["なし", "表象放出機"], "TETH": ["なし", "呪いの釘", "9章2節", "投げ縄"], "HE": ["なし", "水袋", "電信柱", "胸痛", "指令：メルトダウン", "紅炎殺"], "WAW": ["なし", "永続", "穴"], "ALEPH": ["なし"] },
-      "03": { "ZAYIN": ["なし", "ラ・サングレ・デ・サンチョ", "私はチョキを出すね。そっちは？"], "TETH": ["なし", "一生シチュー", "願いの石", "電気哀鳴"], "HE": ["なし", "水袋", "電信柱", "紅籍"], "WAW": ["なし", "渇望-ミルカラ", "愛と憎悪の名の下に"], "ALEPH": ["なし"] },
-      "04": { "ZAYIN": ["なし", "森羅炎象", "ソーダ"], "TETH": ["なし", "赤眠", "盲目"], "HE": ["なし", "4本目のマッチの火", "赤眠（闇）", "胸痛"], "WAW": ["なし", "軽蔑、畏敬", "三千大世界"], "ALEPH": ["なし"] },
-      "05": { "ZAYIN": ["なし", "他人の鎖"], "TETH": ["なし", "ネジの外れた一撃", "後悔", "電気哀鳴"], "HE": ["なし", "執行", "カポーテ", "着影揮刀"], "WAW": ["なし", "渇望-ミルカラ", "粉砕される過去", "穴"], "ALEPH": ["なし"] },
-      "06": { "ZAYIN": ["なし", "虚幻境", "拒絶宣布"], "TETH": ["なし", "桃色の欲望", "ソーダ", "低いなきごえ", "投げ縄"], "HE": ["なし", "次元裂き", "湧き立つ腐食", "寧ろ吾をなさん"], "WAW": ["なし", "汚血泣涙"], "ALEPH": ["なし"] },
-      "07": { "ZAYIN": ["なし", "死体袋", "ホリデイ"], "TETH": ["なし", "AEDD", "凶弾", "転入届"], "HE": ["なし", "電信柱", "空即是色", "偏った慣性"], "WAW": ["なし", "拘束"], "ALEPH": ["なし"] },
-      "08": { "ZAYIN": ["なし", "銛穿ち", "蝍蛆殺"], "TETH": ["なし", "桃色の欲望", "カポーテ", "過ぎし日"], "HE": ["なし", "紅炎殺", "羽ばたき", "クリスマスの悪夢", "海嘯の悲歌"], "WAW": ["なし", "盲目"], "ALEPH": ["なし"] },
-      "09": { "ZAYIN": ["なし", "投げられたもの", "夕焼けの中へ"], "TETH": ["なし", "氷の脚", "湧き立つ腐食", "鏡触覚"], "HE": ["なし", "4本目のマッチの火", "執行", "呪いの釘"], "WAW": ["なし", "血色の欲望", "指定裁判"], "ALEPH": ["なし"] },
-      "10": { "ZAYIN": ["なし", "知識の木の枝", "低いなきごえ"], "TETH": ["なし", "迫り来る日", "一生シチュー", "呪いの釘"], "HE": ["なし", "提灯", "9章2節", "ハーモニー"], "WAW": ["なし", "汚血泣涙"], "ALEPH": ["なし"] },
-      "11": { "ZAYIN": ["なし", "ト・バソス・マソス", "私はチョキを出すね。そっちは？"], "TETH": ["なし", "空即是色", "狐雨"], "HE": ["なし", "黒い枝", "ホリデイ", "次元裂き", "魔弾"], "WAW": ["なし", "拘束"], "ALEPH": ["なし"] },
-      "12": { "ZAYIN": ["なし", "ある日突然", "まやかし"], "TETH": ["なし", "提灯", "過ぎし日", "転入届"], "HE": ["なし", "AEDD", "厳粛な哀悼", "クリスマスの悪夢"], "WAW": ["なし", "茨の花園", "輝かざる栄光"], "ALEPH": ["なし"] }
-    };
+      // 3. JSON 文字列を GZIP 圧縮
+      const gzipped = pako.gzip(jsonString);
 
-    document.addEventListener("DOMContentLoaded", () => {
-      buildUI();
-    });
-
-    function buildUI() {
-      const tbody = document.getElementById("prisoner-rows");
-
-      PRISONERS.forEach((p, idx) => {
-        const tr = document.createElement("tr");
-
-        // 囚人名
-        const tdName = document.createElement("td");
-        tdName.textContent = `${idx+1}. ${p.name}`;
-        tr.appendChild(tdName);
-
-        // 人格 (1始まり)
-        const tdPersona = document.createElement("td");
-        const selPersona = document.createElement("select");
-        selPersona.id = `persona-${p.id}`;
-
-        const personasList = PERSONA_DATA[p.id]?.personas || [];
-        personasList.forEach((name, i) => {
-          const opt = document.createElement("option");
-          opt.value = i + 1; // 値を 1 始まりに変更
-          opt.textContent = `${i + 1} : ${name}`;
-          selPersona.appendChild(opt);
-        });
-        tdPersona.appendChild(selPersona);
-        tr.appendChild(tdPersona);
-
-        // 編成順
-        const tdOrder = document.createElement("td");
-        const selOrder = document.createElement("select");
-        selOrder.id = `order-${p.id}`;
-        const opt0 = document.createElement("option");
-        opt0.value = 0;
-        opt0.textContent = "0: 未選択";
-        selOrder.appendChild(opt0);
-        for (let i = 1; i <= 12; i++) {
-          const opt = document.createElement("option");
-          opt.value = i;
-          opt.textContent = i;
-          selOrder.appendChild(opt);
-        }
-        tdOrder.appendChild(selOrder);
-        tr.appendChild(tdOrder);
-
-        // EGOプルダウン生成 (ZAYINは「なし」を除去して1始まり、他は0:なし / 1始まり)
-        function makeEgoSelect(type) {
-          const sel = document.createElement("select");
-          sel.id = `${type}-${p.id}`;
-          const egoList = EGO_DATA[p.id]?.[type] || [];
-          
-          egoList.forEach((name, i) => {
-            // ZAYINの場合は「なし」(インデックス0)をスキップ
-            if (type === "ZAYIN" && i === 0) return;
-
-            const opt = document.createElement("option");
-            // ZAYINは 1 始まり、その他は 0: なし / 1〜: 装備名
-            opt.value = i; 
-            opt.textContent = (type === "ZAYIN") ? `${i} : ${name}` : `${i} : ${name}`;
-            sel.appendChild(opt);
-          });
-          return sel;
-        }
-
-        const tdZ = document.createElement("td");
-        tdZ.appendChild(makeEgoSelect("ZAYIN"));
-        tr.appendChild(tdZ);
-
-        const tdT = document.createElement("td");
-        tdT.appendChild(makeEgoSelect("TETH"));
-        tr.appendChild(tdT);
-
-        const tdH = document.createElement("td");
-        tdH.appendChild(makeEgoSelect("HE"));
-        tr.appendChild(tdH);
-
-        const tdW = document.createElement("td");
-        tdW.appendChild(makeEgoSelect("WAW"));
-        tr.appendChild(tdW);
-
-        const tdA = document.createElement("td");
-        tdA.appendChild(makeEgoSelect("ALEPH"));
-        tr.appendChild(tdA);
-
-        tbody.appendChild(tr);
-      });
-    }
-
-    // ビット詰め
-    function pushBits(bits, value, length) {
-      for (let i = length - 1; i >= 0; i--) {
-        bits.push((value >> i) & 1);
-      }
-    }
-
-    function bitsToBytes(bits) {
-      const bytes = [];
-      for (let i = 0; i < bits.length; i += 8) {
-        let b = 0;
-        for (let j = 0; j < 8; j++) {
-          b = (b << 1) | (bits[i + j] || 0);
-        }
-        bytes.push(b);
-      }
-      return new Uint8Array(bytes);
-    }
-
-    function uint8ToBase64(u8) {
+      // 4. バイト配列を Base64 文字列に変換
       let binary = "";
-      for (let i = 0; i < u8.length; i++) {
-        binary += String.fromCharCode(u8[i]);
+      for (let i = 0; i < gzipped.length; i++) {
+        binary += String.fromCharCode(gzipped[i]);
       }
-      return btoa(binary);
-    }
+      const base64 = btoa(binary);
 
-    // 全囚人コード生成
-    function generateAllCode() {
-      const bits = [];
-
-      // 先頭1bit（仕様）
-      bits.push(0);
-
-      PRISONERS.forEach(p => {
-        const pid = p.id;
-
-        // UI上は1始まりのため、1を引いて元のインデックス(0始まり)に補正してエンコード
-        const personaIndexVal = parseInt(document.getElementById(`persona-${pid}`).value, 10) || 1;
-        const personaIndex = personaIndexVal - 1;
-
-        const order = parseInt(document.getElementById(`order-${pid}`).value, 10) || 0;
-        
-        // ZAYINは 1 始まり、その他は 0(なし) / 1〜
-        const z = parseInt(document.getElementById(`ZAYIN-${pid}`).value, 10) || 1;
-        const t = parseInt(document.getElementById(`TETH-${pid}`).value, 10) || 0;
-        const h = parseInt(document.getElementById(`HE-${pid}`).value, 10) || 0;
-        const w = parseInt(document.getElementById(`WAW-${pid}`).value, 10) || 0;
-        const a = parseInt(document.getElementById(`ALEPH-${pid}`).value, 10) || 0;
-
-        pushBits(bits, personaIndex, 7);
-        pushBits(bits, order, 4);
-        pushBits(bits, z, 7);
-        pushBits(bits, t, 7);
-        pushBits(bits, h, 7);
-        pushBits(bits, w, 7);
-        pushBits(bits, a, 7);
-      });
-
-      // 末尾11bit
-      for (let i = 0; i < 11; i++) bits.push(0);
-
-      const rawBytes = bitsToBytes(bits);
-      const gzipped = pako.gzip(rawBytes);
-      const base64 = uint8ToBase64(gzipped);
-
+      // 5. 画面に出力
       document.getElementById("code").textContent = base64;
     }
   </script>
