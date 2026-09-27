@@ -123,18 +123,22 @@
         tr.appendChild(tdOrder);
 
         // EGOプルダウン生成
-        function makeEgoSelect(type) {
-          const sel = document.createElement("select");
-          sel.id = `${type}-${p.id}`;
-          const egoList = EGO_DATA[p.id]?.[type] || [];
-          egoList.forEach((name, i) => {
-            const opt = document.createElement("option");
-            opt.value = i;
-            opt.textContent = `${i} : ${name}`;
-            sel.appendChild(opt);
-          });
-          return sel;
-        }
+function makeEgoSelect(type) {
+  const sel = document.createElement("select");
+  sel.id = `${type}-${p.id}`;
+  const egoList = EGO_DATA[p.id]?.[type] || [];
+  
+  egoList.forEach((name, i) => {
+    // ZAYINかつ「なし」の場合はスキップする条件を追加
+    if (type === "ZAYIN" && i === 0) return;
+
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = `${i} : ${name}`;
+    sel.appendChild(opt);
+  });
+  return sel;
+}
 
         const tdZ = document.createElement("td");
         tdZ.appendChild(makeEgoSelect("ZAYIN"));
