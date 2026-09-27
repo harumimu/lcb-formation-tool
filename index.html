@@ -59,16 +59,16 @@
     let EGO_DATA = {};
 
     Promise.all([
-      fetch("./personas.json").then(r => r.json()),
-      fetch("./ego.json").then(r => r.json())
-    ]).then(([personas, egos]) => {
-      PERSONA_DATA = personas;
-      EGO_DATA = egos;
-      buildUI();
-    }).catch(err => {
-      console.error("JSON読み込みエラー:", err);
-    });
-
+  fetch("https://harumimu.github.io/lcb-formation-tool/personas.json").then(r => r.json()),
+  fetch("https://harumimu.github.io/lcb-formation-tool/ego.json").then(r => r.json())
+]).then(([personas, egos]) => {
+  PERSONA_DATA = personas;
+  EGO_DATA = egos;
+  buildUI();
+}).catch(err => {
+  console.error("JSON読み込みエラー:", err);
+});
+    
     function buildUI() {
       const tbody = document.getElementById("prisoner-rows");
 
