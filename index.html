@@ -2,21 +2,23 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>12囚人編成コード生成（GZIP+BASE64）</title>
+  <title>12囚人編成コード生成・復元ツール</title>
   <style>
     body { font-family: system-ui, sans-serif; padding: 20px; }
     h1 { font-size: 1.4rem; margin-bottom: 10px; }
     table { border-collapse: collapse; width: 100%; margin-top: 10px; }
     th, td { border: 1px solid #ccc; padding: 4px; font-size: 0.8rem; }
-    select { font-size: 0.8rem; }
-    .code-box { margin-top: 20px; font-size: 1rem; word-break: break-all; }
+    select, input[type="text"] { font-size: 0.8rem; }
+    .controls { margin-top: 15px; display: flex; gap: 10px; align-items: center; }
+    .code-box { margin-top: 15px; font-size: 0.9rem; word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 4px; }
+    .error { color: red; margin-top: 5px; font-size: 0.8rem; }
   </style>
 
   <!-- GZIPライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 </head>
 <body>
-  <h1>12囚人編成コード生成ツール（GZIP + BASE64）</h1>
+  <h1>12囚人編成コード生成・復元ツール</h1>
 
   <table>
     <thead>
@@ -34,14 +36,18 @@
     <tbody id="prisoner-rows"></tbody>
   </table>
 
-  <button onclick="generateAllCode()">全編成コード生成</button>
-
-  <div class="code-box">
-    コード: <span id="code">未生成</span>
+  <div class="controls">
+    <button onclick="generateAllCode()">全編成コード生成</button>
+    <button onclick="loadCode()">コードから読み込み</button>
+    <input type="text" id="input-code" placeholder="コードを貼り付け" style="width: 300px;" />
   </div>
 
+  <div class="code-box">
+    生成コード: <span id="code">未生成</span>
+  </div>
+  <div id="error-msg" class="error"></div>
+
   <script>
-    // 囚人の固定順
     const PRISONERS = [
       { id: "01", name: "イサン" },
       { id: "02", name: "ファウスト" },
@@ -57,7 +63,6 @@
       { id: "12", name: "グレゴール" }
     ];
 
-    // データ定義
     const PERSONA_DATA = {
       "01": { "name": "イサン", "personas": ["LCB囚人", "南部セブン協会6課", "剣契殺手", "開花E.G.O::壇香梅", "奥歯事務所フィクサー", "W社3級整理要員", "ピークォド号1等航海士", "南部ディエーチ協会4課", "薬指点描派スチューデント", "ロボトミーE.G.O::厳粛な哀悼", "LCE E.G.O::提灯", "南部リウ協会3課", "N社E.G.O::凶弾", "黒獣-午 筆頭", "蜘蛛の巣人差し指の親方", "LCE E.G.O::次元裂き"] },
       "02": { "name": "ファウスト", "personas": ["LCB囚人", "W社2級整理要員", "生き残ったロボトミー職員", "握る者", "南部ツヴァイ協会4課", "南部セブン協会4課", "ロボトミーE.G.O::後悔", "剣契殺手", "ワザリング・ハイツ バトラー", "マルチクラック事務所 代表", "LCE E.G.O::紅炎殺", "黒獣-卯 筆頭", "東部シ協会3課", "人差し指遂行者 : 【紙片】", "蜘蛛の巣 薬指の子方", "夜明事務所フィクサー"] },
@@ -94,31 +99,27 @@
 
     function buildUI() {
       const tbody = document.getElementById("prisoner-rows");
+      tbody.innerHTML = "";
 
       PRISONERS.forEach((p, idx) => {
         const tr = document.createElement("tr");
 
-        // 囚人名
         const tdName = document.createElement("td");
         tdName.textContent = `${idx+1}. ${p.name}`;
         tr.appendChild(tdName);
 
-        // 人格 (1始まり)
         const tdPersona = document.createElement("td");
         const selPersona = document.createElement("select");
         selPersona.id = `persona-${p.id}`;
-
-        const personasList = PERSONA_DATA[p.id]?.personas || [];
-        personasList.forEach((name, i) => {
+        (PERSONA_DATA[p.id]?.personas || []).forEach((name, i) => {
           const opt = document.createElement("option");
-          opt.value = i + 1; // 値を 1 始まりに変更
+          opt.value = i + 1;
           opt.textContent = `${i + 1} : ${name}`;
           selPersona.appendChild(opt);
         });
         tdPersona.appendChild(selPersona);
         tr.appendChild(tdPersona);
 
-        // 編成順
         const tdOrder = document.createElement("td");
         const selOrder = document.createElement("select");
         selOrder.id = `order-${p.id}`;
@@ -135,54 +136,42 @@
         tdOrder.appendChild(selOrder);
         tr.appendChild(tdOrder);
 
-        // EGOプルダウン生成 (ZAYINは「なし」を除去して1始まり、他は0:なし / 1始まり)
         function makeEgoSelect(type) {
           const sel = document.createElement("select");
           sel.id = `${type}-${p.id}`;
           const egoList = EGO_DATA[p.id]?.[type] || [];
-          
           egoList.forEach((name, i) => {
-            // ZAYINの場合は「なし」(インデックス0)をスキップ
             if (type === "ZAYIN" && i === 0) return;
-
             const opt = document.createElement("option");
-            // ZAYINは 1 始まり、その他は 0: なし / 1〜: 装備名
             opt.value = i; 
-            opt.textContent = (type === "ZAYIN") ? `${i} : ${name}` : `${i} : ${name}`;
+            opt.textContent = `${i} : ${name}`;
             sel.appendChild(opt);
           });
           return sel;
         }
 
-        const tdZ = document.createElement("td");
-        tdZ.appendChild(makeEgoSelect("ZAYIN"));
-        tr.appendChild(tdZ);
-
-        const tdT = document.createElement("td");
-        tdT.appendChild(makeEgoSelect("TETH"));
-        tr.appendChild(tdT);
-
-        const tdH = document.createElement("td");
-        tdH.appendChild(makeEgoSelect("HE"));
-        tr.appendChild(tdH);
-
-        const tdW = document.createElement("td");
-        tdW.appendChild(makeEgoSelect("WAW"));
-        tr.appendChild(tdW);
-
-        const tdA = document.createElement("td");
-        tdA.appendChild(makeEgoSelect("ALEPH"));
-        tr.appendChild(tdA);
+        ["ZAYIN", "TETH", "HE", "WAW", "ALEPH"].forEach(type => {
+          const td = document.createElement("td");
+          td.appendChild(makeEgoSelect(type));
+          tr.appendChild(td);
+        });
 
         tbody.appendChild(tr);
       });
     }
 
-    // ビット詰め
     function pushBits(bits, value, length) {
       for (let i = length - 1; i >= 0; i--) {
         bits.push((value >> i) & 1);
       }
+    }
+
+    function readBits(bits, offset, length) {
+      let val = 0;
+      for (let i = 0; i < length; i++) {
+        val = (val << 1) | bits[offset + i];
+      }
+      return val;
     }
 
     function bitsToBytes(bits) {
@@ -197,31 +186,27 @@
       return new Uint8Array(bytes);
     }
 
-    function uint8ToBase64(u8) {
-      let binary = "";
+    function bytesToBits(u8) {
+      const bits = [];
       for (let i = 0; i < u8.length; i++) {
-        binary += String.fromCharCode(u8[i]);
+        for (let j = 7; j >= 0; j--) {
+          bits.push((u8[i] >> j) & 1);
+        }
       }
-      return btoa(binary);
+      return bits;
     }
 
-    // 全囚人コード生成
     function generateAllCode() {
+      document.getElementById("error-msg").textContent = "";
       const bits = [];
 
-      // 先頭1bit（仕様）
-      bits.push(0);
+      bits.push(0); // 先頭1bit
 
       PRISONERS.forEach(p => {
         const pid = p.id;
-
-        // UI上は1始まりのため、1を引いて元のインデックス(0始まり)に補正してエンコード
         const personaIndexVal = parseInt(document.getElementById(`persona-${pid}`).value, 10) || 1;
-        const personaIndex = personaIndexVal;
-
+        const personaIndex = personaIndexVal - 1;
         const order = parseInt(document.getElementById(`order-${pid}`).value, 10) || 0;
-        
-        // ZAYINは 1 始まり、その他は 0(なし) / 1〜
         const z = parseInt(document.getElementById(`ZAYIN-${pid}`).value, 10) || 1;
         const t = parseInt(document.getElementById(`TETH-${pid}`).value, 10) || 0;
         const h = parseInt(document.getElementById(`HE-${pid}`).value, 10) || 0;
@@ -237,14 +222,69 @@
         pushBits(bits, a, 7);
       });
 
-      // 末尾11bit
-      for (let i = 0; i < 11; i++) bits.push(0);
+      for (let i = 0; i < 11; i++) bits.push(0); // 末尾11bit (計552bit / 69バイト)
 
       const rawBytes = bitsToBytes(bits);
       const gzipped = pako.gzip(rawBytes);
-      const base64 = uint8ToBase64(gzipped);
+      
+      let binary = "";
+      for (let i = 0; i < gzipped.length; i++) {
+        binary += String.fromCharCode(gzipped[i]);
+      }
+      const base64 = btoa(binary);
 
       document.getElementById("code").textContent = base64;
+    }
+
+    function loadCode() {
+      const err = document.getElementById("error-msg");
+      err.textContent = "";
+      const inputStr = document.getElementById("input-code").value.trim();
+      
+      if (!inputStr) {
+        err.textContent = "コードを入力してください。";
+        return;
+      }
+
+      try {
+        const binaryStr = atob(inputStr);
+        const u8Array = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          u8Array[i] = binaryStr.charCodeAt(i);
+        }
+
+        const decompressed = pako.ungzip(u8Array);
+        if (decompressed.length < 69) {
+          err.textContent = `データ長が不足しています（必要: 69バイト / 実際: ${decompressed.length}バイト）。`;
+          return;
+        }
+
+        const bits = bytesToBits(decompressed);
+        let offset = 1; // 先頭1bitをスキップ
+
+        PRISONERS.forEach(p => {
+          const pid = p.id;
+          const personaIndex = readBits(bits, offset, 7); offset += 7;
+          const order = readBits(bits, offset, 4);        offset += 4;
+          const z = readBits(bits, offset, 7);            offset += 7;
+          const t = readBits(bits, offset, 7);            offset += 7;
+          const h = readBits(bits, offset, 7);            offset += 7;
+          const w = readBits(bits, offset, 7);            offset += 7;
+          const a = readBits(bits, offset, 7);            offset += 7;
+
+          document.getElementById(`persona-${pid}`).value = personaIndex + 1;
+          document.getElementById(`order-${pid}`).value = order;
+          document.getElementById(`ZAYIN-${pid}`).value = z;
+          document.getElementById(`TETH-${pid}`).value = t;
+          document.getElementById(`HE-${pid}`).value = h;
+          document.getElementById(`WAW-${pid}`).value = w;
+          document.getElementById(`ALEPH-${pid}`).value = a;
+        });
+
+        generateAllCode();
+      } catch (e) {
+        err.textContent = "コードの解読に失敗しました。正しいフォーマットか確認してください。";
+      }
     }
   </script>
 </body>
