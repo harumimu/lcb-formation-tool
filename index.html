@@ -1,46 +1,4 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>Limbus Company 編成コードエディター</title>
-  <style>
-    body { font-family: sans-serif; max-width: 850px; margin: 20px auto; padding: 0 20px; background: #f9f9f9; line-height: 1.4; }
-    textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; height: 60px; font-family: monospace; }
-    button { padding: 8px 16px; margin: 5px 5px 5px 0; cursor: pointer; font-weight: bold; }
-    .panel { border: 1px solid #ccc; padding: 15px; border-radius: 6px; margin-bottom: 20px; background: #fff; }
-    .sinner-card { border: 1px solid #e0e0e0; padding: 10px; margin-bottom: 12px; border-radius: 4px; background: #fafafa; }
-    .sinner-header { font-weight: bold; font-size: 1.1em; margin-bottom: 8px; border-bottom: 2px solid #ddd; padding-bottom: 4px; display: flex; justify-content: space-between; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .form-group { display: flex; align-items: center; }
-    .form-group label { width: 110px; font-size: 0.85em; color: #444; flex-shrink: 0; }
-    .form-group select { flex: 1; padding: 4px; font-size: 0.9em; }
-  </style>
-</head>
-<body>
-
-  <h2>Limbus Company 編成コードエディター</h2>
-
-  <!-- 1. コードインポート -->
-  <div class="panel">
-    <h3>1. 編成コードの読み込み (インポート)</h3>
-    <textarea id="importCode" placeholder="H4sI... から始まるBase64/GZIPコードを入力"></textarea>
-    <button onclick="importData()">コードを取り込んで編集</button>
-  </div>
-
-  <!-- 2. 編成編集 -->
-  <div class="panel">
-    <h3>2. 編成の編集</h3>
-    <div id="deckContainer"></div>
-    <button onclick="exportData()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px;">新しいコードを出力</button>
-  </div>
-
-  <!-- 3. コードエクスポート -->
-  <div class="panel">
-    <h3>3. 生成された編成コード (エクスポート)</h3>
-    <textarea id="exportCode" readonly></textarea>
-  </div>
-
-  <script>
+<script>
     // Master Data (0番目を "初期E.G.O / なし" に合わせて調整)
     const SINNERS = [
       { id: "01", name: "イサン", personas: ["なし", "LCB囚人", "南部セブン協会6課", "剣契殺手", "開花E.G.O::壇香梅", "奥歯事務所フィクサー", "W社3級整理要員", "ピークォド号1等航海士", "南部ディエーチ協会4課", "薬指点描派スチューデント", "ロボトミーE.G.O::厳粛な哀悼", "LCE E.G.O::提灯", "南部リウ協会3課", "N社E.G.O::凶弾", "黒獣-午 筆頭", "蜘蛛の巣人差し指の親方", "LCE E.G.O::次元裂き"], egos: { ZAYIN: ["鳥瞰刀", "過ぎし日"], TETH: ["なし", "4本目のマッチの火", "願いの石"], HE: ["なし", "次元裂き", "凶弾", "厳粛な哀悼"], WAW: ["なし", "狐雨", "三千大世界"], ALEPH: ["なし"] } },
@@ -239,5 +197,3 @@
     renderUI();
     exportData();
   </script>
-</body>
-</html>
