@@ -1,4 +1,46 @@
-<script>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Limbus Company 編成コードエディター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 850px; margin: 20px auto; padding: 0 20px; background: #f9f9f9; line-height: 1.4; }
+    textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; height: 60px; font-family: monospace; }
+    button { padding: 8px 16px; margin: 5px 5px 5px 0; cursor: pointer; font-weight: bold; }
+    .panel { border: 1px solid #ccc; padding: 15px; border-radius: 6px; margin-bottom: 20px; background: #fff; }
+    .sinner-card { border: 1px solid #e0e0e0; padding: 10px; margin-bottom: 12px; border-radius: 4px; background: #fafafa; }
+    .sinner-header { font-weight: bold; font-size: 1.1em; margin-bottom: 8px; border-bottom: 2px solid #ddd; padding-bottom: 4px; display: flex; justify-content: space-between; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .form-group { display: flex; align-items: center; }
+    .form-group label { width: 110px; font-size: 0.85em; color: #444; flex-shrink: 0; }
+    .form-group select { flex: 1; padding: 4px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+
+  <h2>Limbus Company 編成コードエディター</h2>
+
+  <!-- 1. コードインポート -->
+  <div class="panel">
+    <h3>1. 編成コードの読み込み (インポート)</h3>
+    <textarea id="importCode" placeholder="H4sI... から始まるBase64/GZIPコードを入力"></textarea>
+    <button onclick="importData()">コードを取り込んで編集</button>
+  </div>
+
+  <!-- 2. 編成編集 -->
+  <div class="panel">
+    <h3>2. 編成の編集</h3>
+    <div id="deckContainer"></div>
+    <button onclick="exportData()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px;">新しいコードを出力</button>
+  </div>
+
+  <!-- 3. コードエクスポート -->
+  <div class="panel">
+    <h3>3. 生成された編成コード (エクスポート)</h3>
+    <textarea id="exportCode" readonly></textarea>
+  </div>
+
+  <script>
     // Master Data (0番目を "初期E.G.O / なし" に合わせて調整)
     const SINNERS = [
       { id: "01", name: "イサン", personas: ["なし", "LCB囚人", "南部セブン協会6課", "剣契殺手", "開花E.G.O::壇香梅", "奥歯事務所フィクサー", "W社3級整理要員", "ピークォド号1等航海士", "南部ディエーチ協会4課", "薬指点描派スチューデント", "ロボトミーE.G.O::厳粛な哀悼", "LCE E.G.O::提灯", "南部リウ協会3課", "N社E.G.O::凶弾", "黒獣-午 筆頭", "蜘蛛の巣人差し指の親方", "LCE E.G.O::次元裂き"], egos: { ZAYIN: ["鳥瞰刀", "過ぎし日"], TETH: ["なし", "4本目のマッチの火", "願いの石"], HE: ["なし", "次元裂き", "凶弾", "厳粛な哀悼"], WAW: ["なし", "狐雨", "三千大世界"], ALEPH: ["なし"] } },
@@ -15,12 +57,12 @@
       { id: "12", name: "グレゴール", personas: ["なし", "LCB囚人", "南部リウ協会6課", "G社課長代理", "りょ・ミ・パ助手", "バラのスパナ工房フィクサー", "南部ツヴァイ協会4課", "双鈎海賊団副船長", "黒雲会副組長", "エドガー家 継承者", "ラ・マンチャランド 神父", "炎拳事務所生存者", "黒獣-巳", "夜の錐カピターノ", "ロボトミーE.G.O::ランプ", "LCE E.G.O::AEDD", "夜明事務所代表"], egos: { ZAYIN: ["ある日突然", "まやかし"], TETH: ["なし", "提灯", "過ぎし日", "転入届"], HE: ["なし", "AEDD", "厳粛な哀悼", "クリスマスの悪夢"], WAW: ["なし", "茨の花園", "輝かざる栄光"], ALEPH: ["なし"] } }
     ];
 
-    // 初期状態: 人格 1 (LCB囚人), ZAYIN 0 (初期E.G.O), その他 0
+    // 初期状態 (LCB囚人=1, 初期E.G.O=0)
     let currentState = Array.from({ length: 12 }, () => ({
       persona: 1, order: 0, ZAYIN: 0, TETH: 0, HE: 0, WAW: 0, ALEPH: 0
     }));
 
-    // --- BitStream クラス ---
+    // --- BitStream クラス (固定長71バイト処理) ---
     class BitStream {
       constructor(buffer) {
         this.bytes = new Uint8Array(buffer);
@@ -148,10 +190,13 @@
         }
 
         renderUI();
+        
+        // インポートしたコードをそのままエクスポートエリアにセット
+        document.getElementById('exportCode').value = code;
         alert("コードを取り込みました。");
       } catch (err) {
         console.error(err);
-        alert("コードの解析に失敗しました。");
+        alert("コードの解析に失敗しました。正しいLimbus Companyの編成コードか確認してください。");
       }
     }
 
@@ -160,10 +205,13 @@
       try {
         syncStateFromUI();
 
-        const bs = BitStream.create(564);
+        // 71バイト (568 bits = 1 + 552 + 15bits Padding) の固定領域生成
+        const bs = BitStream.create(568);
 
+        // 先頭 1 bit
         bs.writeBits(0, 1);
 
+        // 各囚人のデータ (46 bits x 12 = 552 bits)
         for (let i = 0; i < 12; i++) {
           const s = currentState[i];
           bs.writeBits(s.persona, 7);
@@ -175,11 +223,14 @@
           bs.writeBits(s.ALEPH, 7);
         }
 
-        bs.writeBits(0, 11);
+        // パディング (15 bits)
+        bs.writeBits(0, 15);
 
+        // GZIP 圧縮
         const stream = new Blob([bs.bytes]).stream().pipeThrough(new CompressionStream('gzip'));
         const compressedBuffer = await new Response(stream).arrayBuffer();
 
+        // Base64 化
         const compressedBytes = new Uint8Array(compressedBuffer);
         let binaryStr = '';
         for (let i = 0; i < compressedBytes.byteLength; i++) {
@@ -194,6 +245,10 @@
       }
     }
 
+    // 初期化
     renderUI();
     exportData();
   </script>
+
+</body>
+</html>
