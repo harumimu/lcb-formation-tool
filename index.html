@@ -19,7 +19,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 </head>
 <body>
-  <h1>Limbus Company 編成コード生成器（人格・E.G.O完全対応版）</h1>
+  <h1>Limbus Company 編成コード生成器（初期値設定版）</h1>
 
   <table>
     <thead>
@@ -180,7 +180,7 @@
         tdName.textContent = `${idx + 1}. ${p.name}`;
         tr.appendChild(tdName);
 
-        // 人格選択肢
+        // 人格選択肢（初期値：1番目/インデックス0 を選択）
         const tdPersona = document.createElement("td");
         const selPersona = document.createElement("select");
         selPersona.id = `persona-${p.id}`;
@@ -190,12 +190,17 @@
           const opt = document.createElement("option");
           opt.value = pIndex;
           opt.textContent = personaName;
+          
+          // 人格の初期値を1（一番上の選択肢）に設定
+          if (pIndex === 0) {
+            opt.selected = true;
+          }
           selPersona.appendChild(opt);
         });
         tdPersona.appendChild(selPersona);
         tr.appendChild(tdPersona);
 
-        // 出撃順序
+        // 出撃順序（初期値：未編成 0）
         const tdOrder = document.createElement("td");
         const selOrder = document.createElement("select");
         selOrder.id = `order-${p.id}`;
@@ -225,7 +230,7 @@
             opt.value = egoIndex;
             opt.textContent = egoName;
 
-            // ZAYINは初期E.G.O（1番目）を標準選択
+            // ZAYINの初期値を1（配列の1番目：基本EGO）に設定
             if (rank === "ZAYIN" && egoIndex === 1) {
               opt.selected = true;
             }
