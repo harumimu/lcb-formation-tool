@@ -103,6 +103,7 @@
         const state = currentState[idx];
         const card = document.createElement('div');
         card.className = 'sinner-card';
+        card.setAttribute('data-sinner-idx', idx);
 
         let orderOptions = `<option value="0" ${state.order === 0 ? 'selected' : ''}>未選択 (0)</option>`;
         for (let i = 1; i <= 12; i++) {
@@ -113,13 +114,13 @@
           <div class="sinner-header">
             <span>${sinner.id}. ${sinner.name}</span>
             <span style="font-size:0.8em; font-weight:normal;">編成順: 
-              <select onchange="updateVal(${idx}, 'order', this.value)" style="padding:2px;">${orderOptions}</select>
+              <select class="sel-order" onchange="updateVal(${idx}, 'order', this.value)" style="padding:2px;">${orderOptions}</select>
             </span>
           </div>
           <div class="form-grid">
             <div class="form-group">
               <label>人格:</label>
-              <select onchange="updateVal(${idx}, 'persona', this.value)">
+              <select class="sel-persona" onchange="updateVal(${idx}, 'persona', this.value)">
                 ${sinner.personas.map((p, pIdx) => `<option value="${pIdx}" ${pIdx === state.persona ? 'selected' : ''}>${p}</option>`).join('')}
               </select>
             </div>
@@ -130,7 +131,7 @@
           html += `
             <div class="form-group">
               <label>E.G.O (${rank}):</label>
-              <select onchange="updateVal(${idx}, '${rank}', this.value)">
+              <select class="sel-${rank}" onchange="updateVal(${idx}, '${rank}', this.value)">
                 ${list.map((e, eIdx) => `<option value="${eIdx}" ${eIdx === state[rank] ? 'selected' : ''}>${e}</option>`).join('')}
               </select>
             </div>
@@ -145,6 +146,20 @@
 
     function updateVal(sinnerIdx, key, val) {
       currentState[sinnerIdx][key] = parseInt(val, 10);
+    }
+
+    // 画面上の現在の選択値をcurrentStateへ一括読み込み
+    function syncStateFromUI() {
+      const cards = document.querySelectorAll('.sinner-card');
+      cards.forEach((card, idx) => {
+        currentState[idx].order = parseInt(card.querySelector('.sel-order').value, 10);
+        currentState[idx].persona = parseInt(card.querySelector('.sel-persona').value, 10);
+        currentState[idx].ZAYIN = parseInt(card.querySelector('.sel-ZAYIN').value, 10);
+        currentState[idx].TETH = parseInt(card.querySelector('.sel-TETH').value, 10);
+        currentState[idx].HE = parseInt(card.querySelector('.sel-HE').value, 10);
+        currentState[idx].WAW = parseInt(card.querySelector('.sel-WAW').value, 10);
+        currentState[idx].ALEPH = parseInt(card.querySelector('.sel-ALEPH').value, 10);
+      });
     }
 
     // --- デコード処理 ---
@@ -188,6 +203,9 @@
     // --- エンコード処理 ---
     async function exportData() {
       try {
+        // 出力前に画面の選択状態を最終確認して同期
+        syncStateFromUI();
+
         const bs = BitStream.create(564); // 1 + 46*12 + 11 = 564 bits
 
         // 先頭 1 bit
